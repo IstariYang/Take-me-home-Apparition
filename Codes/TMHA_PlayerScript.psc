@@ -41,6 +41,11 @@ FormList Property TMHA_QuestStages Auto            ; 任务完成阶段 GlobalVa
 FormList Property TMHA_ProximityHomeIndices Auto   ; 距离房产索引 GlobalVariable 列表
 
 ; -----------------------------------------------------------------------------
+; 用于判断野外是否属于该房产庭院的XMarker
+; -----------------------------------------------------------------------------
+FormList Property TMHA_HomeProximityZones Auto   ; 房产范围检测 Marker 列表
+
+; -----------------------------------------------------------------------------
 ; 通用数据 - 按房产索引位置存储
 ; -----------------------------------------------------------------------------
 FormList Property TMHA_UnlockedHomes Auto          ; 动态填充的已解锁Marker列表
@@ -378,7 +383,7 @@ Function CheckProximityHomes()
                 if homeIndex < CachedMarkers.Length
                     marker = CachedMarkers[homeIndex]
                 endif
-                if marker && PlayerRef.GetDistance(marker) < 300.0
+                if marker && PlayerRef.GetDistance(marker) < 1056.0
                     HomeUnlocked[homeIndex] = true
                     string name = GetCachedName(homeIndex)
                     Debug.Notification(name + " now answers my call.")
@@ -423,12 +428,36 @@ string Function GetCachedName(int index)
 EndFunction
 
 ; =============================================================================
-; 判断玩家是否在任意房产范围内
+; 判断玩家是否在任意房产范围内（增强版：遍历所有子表单 + 庭院范围检测）
 ; =============================================================================
 bool Function IsPlayerInAnyHomeArea()
+    ; 第一步：Location 检测（原有逻辑）
     Location currentLoc = PlayerRef.GetCurrentLocation()
-    if !currentLoc
-        return false
+    if currentLoc
+        if TMHA_AllLocationsFlat.Find(currentLoc) >= 0
+            return true
+        endif
+        ; 遍历子表单（增强版）
+        int i = 0
+        while i < TMHA_AllHomeLocationLists.GetSize() && i < 66
+            FormList sublist = TMHA_AllHomeLocationLists.GetAt(i) as FormList
+            if sublist && sublist.Find(currentLoc) >= 0
+                return true
+            endif
+            i += 1
+        endwhile
     endif
-    return TMHA_AllLocationsFlat.Find(currentLoc) >= 0
+
+    ; 第二步：检测玩家是否在某房产的 ProximityZone 范围内（统一半径1056）
+    int count = TMHA_HomeProximityZones.GetSize()
+    int i = 0
+    while i < count
+        ObjectReference marker = TMHA_HomeProximityZones.GetAt(i) as ObjectReference
+        if marker && PlayerRef.GetDistance(marker) < 1056.0
+            return true
+        endif
+        i += 1
+    endwhile
+
+    return false
 EndFunction
